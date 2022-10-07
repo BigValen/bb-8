@@ -1,5 +1,3 @@
-#include <SoftwareSerial.h>
-
 int
     LED_1F_1 = 4, // Flash the four 1F LEDs in sequence
     LED_1F_2 = 5,
@@ -33,17 +31,12 @@ int
 
 int brightness = 0;    // how bright the LED is
 int fadeAmount = 5;    // how many points to fade the LED by
-
+int iteration =0;
 // the setup routine runs once when you press reset:
 void setup() {
-  SoftwareSerial command(CMD_RX, CMD_TX); // RX, TX
-  Serial.begin(57600;)
-  command.begin(9600);
-  while (!Serial) { ; }
 
-
-  command.println("ready.");
-  Serial.println("ready.");
+  Serial.begin(9600);
+  Serial.println("Ready.");
 
 // Setup solid LEDs for output, PWM doesn't need that
   pinMode(LED_1F_1, OUTPUT);
@@ -59,23 +52,47 @@ void setup() {
 // the loop routine runs over and over again forever:
 void loop() {
 
-  while (Serial.available()) {
-    delay(3);  //delay to allow buffer to fill 
+/* Message is 3 bytes.
+  Byte one:
+    N - ON
+    F - OFF
+    P - Pulse
+    B - brighten over 5 seconds
+    D - dim over 5 seconds
+  Byte 2
+    PIN NUMBER
+*/
+  
+  String command;
+  Serial.print("Checking for message, time: ");
+  Serial.println(iteration++);
+  if (Serial.available()) {
+    Serial.println("Found message");
+    delay(5);  //delay to allow buffer to fill 
     if (Serial.available() >0) {
-      char c = Serial.read();  //gets one byte from serial buffer
-      readString += c; //makes the string readString
+      command     = Serial.readString();  //gets one byte from serial buffer
+      Serial.print("Got command: "); Serial.println(command); 
     } 
-  }
-
-  if (readString.length() >0) {
-      Serial.println(readString); //see what was received
-      
+    
+    if (command.length() > 0) {      
       // expect a string like 07002100 containing the two servo positions      
-      servo1 = readString.substring(0, 4); //get the first four characters
-      servo2 = readString.substring(4, 8); //get the next four characters 
-      
+      char cmd[1];
+      char pin[2];
+      command.toCharArray(cmd,1); //get the first char
+      command.toCharArray(pin,2); //get the second two chars
+      Serial.print("cmd: ");
+      Serial.print(cmd[0]);
+      Serial.print("  pin:");
+      Serial.print(pin[0]);
+      Serial.print(pin[1]);
 
-
+    }
+  } else {
+    Serial.println("No message");
+    delay(500);
+  }
+}
+/*
 
 
   // set the brightness of pin 9:
@@ -91,3 +108,4 @@ void loop() {
   // wait for 30 milliseconds to see the dimming effect
   delay(30);
 }
+*/
