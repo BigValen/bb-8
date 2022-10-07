@@ -1,22 +1,34 @@
+#include <SoftwareSerial.h>
 
-int PWM_5L = 27,
-    PWM_4TA  = 0,
-    PWM_4TB  = 1,
-    PWM_3B = 14,
-    PWM_6BK2 = 15,
-    PWM_5 = 16,
-    PWM_6 = 26,
-    PWM_7 = 25,
-    PWM_8 = 24,
-    LED_1FA = 4, // Flash the four 1F LEDs in sequence
-    LED_1FB = 5,
-    LED_1FC = 7,
-    LED_1FD = 8,
-    LED_6BK2 = 9,
-    LED = 10,
-    LED = 11,
-    LED = 12,
-    LED = 13,
+int
+    LED_1F_1 = 4, // Flash the four 1F LEDs in sequence
+    LED_1F_2 = 5,
+    LED_1F_3 = 7,
+    LED_1F_4 = 8,
+
+    PWM_2R_1 = 16,  // Blue Pulse
+    PWM_2R_2 = 26,  // Red Pulse
+
+    PWM_3B = 14,   // Blue pulse
+    
+    PWM_4T_1  = 0,  // Blue pulse
+    PWM_4T_2  = 1,  // Red pulse
+
+    PWM_5L = 27,   // blue pulse
+
+    LED_6BK_1 = 9,  // yellow
+    PWM_6BK_2 = 15, // red pulse
+    LED_6BK_3 = 10, // red solid on
+    PWM_6BK_4 = 25, // blue
+    PWM_6BK_5 = 24, // red pulse
+    LED_6BK_6 = 11, // red solid on
+
+    LED_spare1 = 12,
+    LED_spare2 = 13,
+    CMD_RX = 18,
+    CMD_TX = 19;
+;
+
 
 
 int brightness = 0;    // how bright the LED is
@@ -24,8 +36,24 @@ int fadeAmount = 5;    // how many points to fade the LED by
 
 // the setup routine runs once when you press reset:
 void setup() {
-  // declare pin 9 to be an output:
-  pinMode(led, OUTPUT);
+  SoftwareSerial command(CMD_RX, CMD_TX); // RX, TX
+  Serial.begin(57600;)
+  command.begin(9600);
+  while (!Serial) { ; }
+
+
+  command.println("ready.");
+  Serial.println("ready.");
+
+// Setup solid LEDs for output, PWM doesn't need that
+  pinMode(LED_1F_1, OUTPUT);
+  pinMode(LED_1F_2, OUTPUT);
+  pinMode(LED_1F_3, OUTPUT);
+  pinMode(LED_1F_4, OUTPUT);
+  pinMode(LED_6BK_1, OUTPUT);
+  pinMode(LED_6BK_3, OUTPUT);
+  pinMode(LED_6BK_6, OUTPUT);
+
 }
 
 // the loop routine runs over and over again forever:
