@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"machine"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,25 +30,25 @@ var (
 	}
 
 	pwmLeds = [...]pwmLed{
-		// Front battery indicator lights - on solid, unless battery drops
-		{name: "F_1_BLUE", pin: machine.GP2, duration: 3 * time.Second},
-		{name: "F_2_BLUE", pin: machine.GP3, duration: 4 * time.Second},
-		{name: "F_3_BLUE", pin: machine.GP4, duration: 5 * time.Second},
-		{name: "F_4_BLUE", pin: machine.GP5, duration: 6 * time.Second},
+		// Front battery indicator lights - on solid, unless battery drops - don't use the first two, during debugging
+		//{name: "F_1_BLUE", pin: machine.GP0, duration: 3 * time.Second, solid: true},
+		//{name: "F_2_BLUE", pin: machine.GP1, duration: 4 * time.Secon, solid: true},
+		{name: "F_3_BLUE", pin: machine.GP2, duration: 5 * time.Second, solid: true},
+		{name: "F_4_BLUE", pin: machine.GP3, duration: 6 * time.Second, solid: true},
 
-		{name: "B_BLUE", pin: machine.GP6, duration: 7 * time.Second},
+		{name: "B_BLUE", pin: machine.GP4, duration: 7 * time.Second, solid: false},
 
-		{name: "R_1_BLUE", pin: machine.GP7, duration: 8 * time.Second},
-		{name: "R_2_RED", pin: machine.GP8, duration: 9 * time.Second},
+		{name: "R_1_BLUE", pin: machine.GP5, duration: 8 * time.Second, solid: false},
+		{name: "R_2_RED", pin: machine.GP6, duration: 9 * time.Second, solid: false},
 
-		{name: "T_1_BLUE", pin: machine.GP9, duration: 2 * time.Second},
-		{name: "T_2_RED", pin: machine.GP10, duration: 10 * time.Second},
+		{name: "T_1_BLUE", pin: machine.GP7, duration: 2 * time.Second, solid: false},
+		{name: "T_2_RED", pin: machine.GP10, duration: 10 * time.Second, solid: false},
 
-		{name: "BK_2_RED", pin: machine.GP11, duration: 2 * time.Second},
-		{name: "BK_3_RED", pin: machine.GP12, duration: 5 * time.Second},
-		{name: "BK_4_BLUE", pin: machine.GP13, duration: 6 * time.Second},
-		{name: "BK_5_RED", pin: machine.GP14, duration: 9 * time.Second},
-		{name: "BK_6_RED", pin: machine.GP15, duration: 3 * time.Second},
+		{name: "BK_2_RED", pin: machine.GP11, duration: 2 * time.Second, solid: false},
+		{name: "BK_3_RED", pin: machine.GP12, duration: 5 * time.Second, solid: false},
+		{name: "BK_4_BLUE", pin: machine.GP13, duration: 6 * time.Second, solid: false},
+		{name: "BK_5_RED", pin: machine.GP14, duration: 9 * time.Second, solid: false},
+		{name: "BK_6_RED", pin: machine.GP15, duration: 3 * time.Second, solid: false},
 	}
 )
 
@@ -58,7 +61,7 @@ var pwmHandles [numPwmLeds]pwmHandle
 func main() {
 
 	println("Setting up serial")
-	machine.UART0.Configure(machine.UARTConfig{BaudRate: 9600, TX: machine.GP0, RX: machine.GP1})
+	machine.UART1.Configure(machine.UARTConfig{BaudRate: 9600, TX: machine.GP8, RX: machine.GP9})
 	time.Sleep(2 * time.Second)
 
 	println("Ready")
@@ -83,11 +86,38 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		go fade(led)
+		if led.solid != true {
+			go fade(led)
+		} else {
+			solid(led, 100)
+		}
 	}
-	go readUart(machine.UART0)
+	go readUart(machine.UART1)
 	for {
 		time.Sleep(time.Second / 100)
+	}
+}
+
+// Set the LED to a specific level
+func solid(led pwmLed, level uint8) {
+	if level < 0 || level > 100 {
+		panic("led level out of bounds")
+	}
+	// If level is 0 or 100, then don't use PWM, so it doesn't interfere with any lights on the same block
+	if level == 0 {
+		led.pin.Configure(machine.PinConfig{Mode: machine.PinOutput})
+		led.pin.Low()
+	} else if level == 100 {
+		led.pin.Configure(machine.PinConfig{Mode: machine.PinOutput})
+		led.pin.High()
+	} else {
+		err := pwmHandles[i].Configure(machine.PWMConfig{
+			Period: pwmPeriod,
+		})
+		if err != nil {
+			panic(err)
+		}
+		pwmHandles[led.index].SetPercent(uint8(level))
 	}
 }
 
@@ -124,16 +154,59 @@ func fade(led pwmLed) {
 // Read a command from the UART
 // TODO: Make this actually work
 func readUart(uart *machine.UART) {
-	var buffer []byte
+	var input string
 	for {
-		n, err := uart.Read(buffer)
+		b, err := uart.ReadByte()
 		if err != nil {
-			println("Got error reading serial:", err)
-			panic(err)
+			time.Sleep(50 * time.Millisecond)
+			continue
 		}
-		if n > 0 {
-			println("Read ", n, "bytes ", buffer)
+		if b == 13 {
+			if len(input) < 1 {
+				uart.Write([]byte("\n\r> "))
+				continue
+			}
+			command := strings.Fields(input)
+			switch command[0] {
+			case "battery":
+				if len(command) != 2 {
+					uart.Write([]byte("\n\rerror: battery <0-100>"))
+				} else {
+					level, err := strconv.Atoi(command[1])
+					if err != nil || level < 0 || level > 100 {
+						uart.Write([]byte("\n\rerror: battery <0-100>"))
+					} else {
+						uart.Write([]byte("set battery level: " + fmt.Sprint(level) + "\n\r"))
+					}
+				}
+			default:
+				uart.Write([]byte("unknown command: " + input + "\n\r"))
+			}
+			input = ""
+			uart.Write([]byte("\n\r> "))
+		} else {
+			uart.Write([]byte{b})
+			input += string(b)
 		}
-		time.Sleep(10 * time.Millisecond)
+		//out := "Read " + fmt.Sprint(b)
+		//uart.Write([]byte(out))
+		time.Sleep(20 * time.Millisecond)
+
+		/*
+			var buffer []byte
+			n, err := uart.Read(buffer)
+			if err != nil {
+				out := string("Got error reading serial:" + string(err.Error()))
+				uart.Write([]byte(out))
+				panic(err)
+			}
+			if n > 0 {
+				out := "Read " + fmt.Sprint(n) + "bytes " + string(buffer)
+				uart.Write([]byte(out))
+			} else {
+				uart.Write([]byte(fmt.Sprint(n) + "."))
+			}
+		*/
+
 	}
 }
